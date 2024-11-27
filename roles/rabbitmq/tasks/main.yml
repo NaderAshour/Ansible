@@ -1,0 +1,88 @@
+---
+- name: Update OS with the latest patches
+  yum:
+    name: '*'
+    state: latest
+    update_cache: yes
+
+- name: Enable EPEL repository
+  shell: |
+    amazon-linux-extras enable epel
+    yum install -y epel-release
+  args:
+    warn: false
+
+- name: Install wget
+  yum:
+    name: wget
+    state: present
+
+- name: Add RabbitMQ Erlang repository
+  copy:
+    dest: /etc/yum.repos.d/rabbitmq_erlang.repo
+    content: |
+      [rabbitmq_erlang]
+      name=RabbitMQ Erlang Packages
+      baseurl=https://dl.cloudsmith.io/public/rabbitmq/rabbitmq-erlang/rpm/el/7/$basearch/
+      gpgcheck=1
+      gpgkey=https://dl.cloudsmith.io/public/rabbitmq/rabbitmq-erlang/gpg.1548404757.txt
+      enabled=1
+
+- name: Add RabbitMQ Server repository
+  copy:
+    dest: /etc/yum.repos.d/rabbitmq.repo
+    content: |
+      [rabbitmq_rabbitmq-server]
+      name=RabbitMQ Server
+      baseurl=https://dl.cloudsmith.io/public/rabbitmq/rabbitmq-server/rpm/el/7/$basearch/
+      gpgcheck=1
+      gpgkey=https://dl.cloudsmith.io/public/rabbitmq/rabbitmq-server/gpg.1548404757.txt
+      enabled=1
+
+- name: Install Erlang
+  yum:
+    name: erlang
+    state: present
+
+- name: Install RabbitMQ Server
+  yum:
+    name: rabbitmq-server
+    state: present
+
+- name: Ensure RabbitMQ service is enabled and started
+  service:
+    name: rabbitmq-server
+    state: started
+    enabled: yes
+
+- name: Create RabbitMQ configuration directory
+  file:
+    path: /etc/rabbitmq
+    state: directory
+    mode: '0755'
+
+- name: Configure RabbitMQ to allow access from non-localhost
+  copy:
+    dest: /etc/rabbitmq/rabbitmq.config
+    content: "[{rabbit, [{loopback_users, []}]}]."
+    mode: '0644'
+
+- name: Add RabbitMQ user
+  command: rabbitmqctl add_user test test
+  register: add_user_output
+  failed_when: "'already exists' not in add_user_output.stderr"
+
+- name: Set RabbitMQ user as administrator
+  command: rabbitmqctl set_user_tags test administrator
+  register: set_user_tags_output
+  failed_when: "'already exists' not in set_user_tags_output.stderr"
+
+- name: Restart RabbitMQ service
+  service:
+    name: rabbitmq-server
+    state: restarted
+
+- name: Ensure RabbitMQ port 5672 is open (manual step)
+  debug:
+    msg: "Ensure that RabbitMQ port 5672 is open in the AWS Security Group associated with this instance."
+

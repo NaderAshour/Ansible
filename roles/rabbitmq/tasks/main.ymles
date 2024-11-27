@@ -1,0 +1,34 @@
+---
+# tasks file for roles/rabbitmq
+
+
+- name: Enable RabbitMQ via Amazon Linux Extras
+  command: amazon-linux-extras enable rabbitmq erlang
+  register: enable_extras
+  changed_when: "'enabled' in enable_extras.stdout"
+
+- name: Install Erlang and RabbitMQ from Amazon Linux Extras
+  yum:
+    name:
+      - erlang
+      - rabbitmq-server
+    state: present
+
+- name: Ensure RabbitMQ service is enabled and started
+  service:
+    name: rabbitmq-server
+    state: started
+    enabled: yes
+
+- name: Configure RabbitMQ
+  lineinfile:
+    path: /etc/rabbitmq/rabbitmq.config
+    line: '[{rabbit, [{loopback_users, []}]}].'
+
+- name: Add RabbitMQ admin user
+  command: rabbitmqctl add_user test test
+  ignore_errors: yes
+
+- name: Assign administrator role to RabbitMQ user
+  command: rabbitmqctl set_user_tags test administrator
+
